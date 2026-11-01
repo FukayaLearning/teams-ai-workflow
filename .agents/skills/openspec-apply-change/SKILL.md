@@ -95,6 +95,7 @@ Implement tasks from an OpenSpec change.
    - Make the code changes required
    - Keep changes minimal and focused
    - Mark task complete in the tasks file: `- [ ]` → `- [x]`
+   - Update corresponding USDM specification status icons (`- □□□ **{id}**:` → `- ■■□ **{id}**:` when implemented, `- ■■■ **{id}**:` when tested) in the change's `specs/<capability-path>/spec.md`
    - Continue to next task
 
    **Pause if:**

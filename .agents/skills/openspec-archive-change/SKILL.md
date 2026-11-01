@@ -35,9 +35,11 @@ Archive a completed change in the experimental workflow.
    **Load current archive inputs before the existing archive checks:**
 
    After resolving the selected change and planning root, run:
+
    ```bash
    openspec instructions archive --change "<name>" --json
    ```
+
    Keep the same selected-root flags on this command. This lookup is advisory and
    optional: it only supplies extra prompt inputs, so it must never block archiving.
    If it exits non-zero or returns invalid JSON — for example on an older CLI that
@@ -119,17 +121,18 @@ Archive a completed change in the experimental workflow.
 
    Then run the `openspec-sync-specs` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 5 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
 
-   Then re-run the comparison from the top of this step against every capability that has a delta spec in `artifactPaths.specs.existingOutputPaths` — not only the ones the sync reports it touched. A successful sync leaves nothing left to apply, so each capability must now read as already synced:
-   - ADDED requirements present
-   - MODIFIED requirements carrying the scenario and description changes named in the delta, with their other scenarios intact
-   - REMOVED requirements gone — and where this sync retired a capability (removed its last requirement, leaving `## Requirements` empty), its main spec deleted rather than left empty; a spec the sync deliberately kept and reported is also a match
-   - RENAMED requirements present under the new name and absent under the old one
+     Then re-run the comparison from the top of this step against every capability that has a delta spec in `artifactPaths.specs.existingOutputPaths` — not only the ones the sync reports it touched. A successful sync leaves nothing left to apply, so each capability must now read as already synced in **USDM Markdown format** (`formats/USDM定義_マークダウン形式.md`):
+   - Added Categories (`## ＜{カテゴリ名}＞`), Upper Requirements (`### {keywords}: 上位要求 {id}`), SubRequirements (`##### 下位要求 {id}`), SpecificationGroups (`###### ＜{仕様グループ名}＞`), and Specifications (`- {verified_icon} **{id}**: {specification}`) are present
+   - Modified Requirements, SubRequirements, and Specifications carry the updated text and verified status icons (`□□□` / `■□□` / `■■□` / `■■■`), with untouched items intact
+   - Removed items (`<!-- REMOVED: {id} -->`) are gone — and where this sync retired a capability, its main spec is deleted rather than left empty
+   - Heading hierarchy (H1–H6) and full-width angle brackets `＜＞` conform strictly to the USDM Markdown specification
 
    If the sync failed, or any capability does not match, report what differs and stop — do not archive. Nothing has moved and `changeRoot` is intact, so the user can fix the mismatch or re-run the sync and start the archive again.
 
 5. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
+
    ```bash
    mkdir -p "<planningHome.changesDir>/archive"
    ```
@@ -167,6 +170,7 @@ Archive a completed change in the experimental workflow.
 ```
 
 **Guardrails**
+
 - Announce the selected change; prompt for selection when it is ambiguous
 - Use artifact graph (openspec status --json) for completion checking
 - Don't block archive on warnings - just inform and confirm

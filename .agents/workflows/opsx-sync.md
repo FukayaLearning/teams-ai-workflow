@@ -28,6 +28,7 @@ This is an **agent-driven** operation - you will read delta specs and directly e
 2. **Resolve change context**
 
    Run:
+
    ```bash
    openspec status --change "<name>" --json
    ```
@@ -56,11 +57,14 @@ This is an **agent-driven** operation - you will read delta specs and directly e
    empty, report that there is nothing to sync and stop without writing a main
    spec.
 
-   Each delta spec file contains sections like:
-   - `## ADDED Requirements` - New requirements to add
-   - `## MODIFIED Requirements` - Changes to existing requirements
-   - `## REMOVED Requirements` - Requirements to remove
-   - `## RENAMED Requirements` - Requirements to rename (FROM:/TO: format)
+     Each change spec file (`specs/<capability-path>/spec.md`) is written in the **USDM Markdown format** (`affordd-prj/usdm-schema`: `formats/USDM定義_マークダウン形式.md`):
+   - `H1`: `# {title}`
+   - `H2`: `## ＜{カテゴリ名}＞` (Category / 上位要求グループ)
+   - `H3`: `### {keywords}: 上位要求 {id}` + `**要求**:`, `**理由**:`, `**説明**:`
+   - `H4`: `#### ＜{要求グループ名}＞` (2階層パターンのみ)
+   - `H5`: `##### 下位要求 {id}` + `**要求**:`, `**理由**:`, `**説明**:` (2階層パターンのみ)
+   - `H6`: `###### ＜{仕様グループ名}＞` + `- {verified_icon} **{id}**: {specification}`
+   - Optional removal markers: `<!-- REMOVED: {id} -->` (when removing an existing Requirement `Rxx`, SubRequirement `Rxx-xx`, or Specification `Sxx-xx`)
 
    If no delta specs found, inform user and stop.
 
@@ -84,143 +88,127 @@ This is an **agent-driven** operation - you will read delta specs and directly e
 
    For each capability delta spec path selected in step 3 — the full `existingOutputPaths` list, or the narrowed subset when a caller supplied one (these may belong to a selected store, not the repo):
 
-   a. **Read the delta spec** to understand the intended changes
+   a. **Read the delta spec** to understand the intended USDM changes
 
    b. **Read the main spec** at `<planningHome.root>/openspec/specs/<capability-path>/spec.md` (may not exist yet)
 
-   c. **Apply changes intelligently**:
+   c. **Apply changes intelligently in USDM Markdown format**:
 
-      **ADDED Requirements:**
-      - If requirement doesn't exist in main spec → add it
-      - If requirement already exists → update it to match (treat as implicit MODIFIED)
+     **Added Categories / Requirements / SubRequirements / Specifications:**
+   - If a Category (`## ＜{カテゴリ名}＞`), Requirement (`### {keywords}: 上位要求 {id}`), RequirementGroup (`#### ＜{要求グループ名}＞`), SubRequirement (`##### 下位要求 {id}`), SpecificationGroup (`###### ＜{仕様グループ名}＞`), or Specification (`- {icon} **{id}**: {specification}`) does not exist in the main spec → add it in its proper USDM hierarchy position.
 
-      **MODIFIED Requirements:**
-      - Find the requirement in main spec
-      - Apply the changes - this can be:
-        - Adding new scenarios the main spec does not have yet
-        - Modifying existing scenarios
-        - Changing the requirement description
-      - Preserve scenarios/content not mentioned in the delta
+     **Modified Requirements / SubRequirements / Specifications:**
+   - Match by ID (`上位要求 {id}`, `下位要求 {id}`, or `**{id}**:`).
+   - Update keywords, `**要求**:`, `**理由**:`, `**説明**:`, group names, specification text, and verified status icons (`□□□` / `■□□` / `■■□` / `■■■`).
+   - Preserve existing Categories, Requirements, SubRequirements, and Specifications in the main spec that were not modified or marked for removal.
 
-      **REMOVED Requirements:**
-      - Remove the entire requirement block from main spec
-      - Retiring the capability. Delete the whole `spec.md` - and the directory once
-        nothing else is left in it - only when ALL of these hold:
-        1. removing the requirements *this run* left no requirement blocks;
-        2. the rest of the spec is well-formed (it still has a `## Purpose`);
-        3. the main spec was not already empty before this sync - if you removed
-           nothing, change nothing;
-        4. every other nonblank line in the whole file is accounted for as the
-           title, Purpose, Requirements header, or a canonical requirement's
-           statement, scenarios, or fenced examples;
-        5. the change's `.openspec.yaml` declares `retire_capabilities: true`;
-        6. the `spec.md` resolves inside the real specs root (do not follow a
-           capability-directory symlink to delete an external file).
-        If removing the selected requirements would leave no requirement blocks and
-        any retirement condition is not satisfied, do not modify the main spec. Stop
-        the sync for that capability, report the blocking condition, and tell the user
-        how to resolve it. Never write or leave an empty `## Requirements` section.
-        When only the marker is missing, say that too - it is the one thing the user
-        can add to make the retirement go through.
-      - Deleting the file also deletes its `## Purpose`; any other section blocks
-        retirement. Name Purpose when you report the retirement. Include a pasteable
-        `git checkout` only when the spec lived in the caller's checkout;
-        otherwise give checkout-scoped recovery guidance.
-
-      **RENAMED Requirements:**
-      - Find the FROM requirement, rename to TO
-
-      **`## Purpose` in the delta:**
-      - The main spec already has one and it is authoritative - leave it alone
-        (this is what `openspec archive` does; it warns and moves on)
+     **Removed Requirements / SubRequirements / Specifications:**
+   - When the change spec includes `<!-- REMOVED: {id} -->` (or explicitly designates an ID for removal), remove the corresponding block/item from the main spec.
+   - If removing a SubRequirement leaves only 1 SubRequirement under a RequirementGroup (`#### ＜{要求グループ名}＞`), apply the **Forced 2-Level Rule (強制2層パターン)** by clearing the remaining SubRequirement's `**理由**:` and `**説明**:` values.
+   - Retiring the capability: Delete the whole `spec.md` (and directory if empty) only when all requirements are removed and the change's `.openspec.yaml` declares `retire_capabilities: true`.
 
    d. **Create new main spec** if capability doesn't exist yet:
-      - Create `<planningHome.root>/openspec/specs/<capability-path>/spec.md`
-      - Add Purpose section: copy the delta's `## Purpose` body verbatim when it has one
-        (this is what `openspec archive` does); only write a brief TBD placeholder when it does not
-      - Add Requirements section with the ADDED requirements
-      - Follow the **Main Spec Format Reference** below
+   - Create `<planningHome.root>/openspec/specs/<capability-path>/spec.md`
+   - Write the complete USDM Markdown document following the **USDM Spec Format Reference** below.
 
-5. **Validate updated main specs**
+6. **Validate updated main specs against USDM Markdown Format Rules**
 
-   Run `openspec validate --specs` with the same selected-root flags used earlier.
-   If validation fails, report the problems and do not claim the sync succeeded.
+   Verify that every updated main spec strictly conforms to the AFFORDD `usdm-schema` Markdown specification (`formats/USDM定義_マークダウン形式.md`):
+   - **Heading hierarchy**:
+     - `H1`: `# {title}` at the top of the document
+     - `H2`: `## ＜{カテゴリ名}＞` (enclosed in full-width `＜＞`, no ID)
+     - `H3`: `### {keywords}: 上位要求 {id}` followed by `**要求**:`, `**理由**:`, `**説明**:`
+     - `H4`: `#### ＜{要求グループ名}＞` (2-level pattern only, enclosed in full-width `＜＞`)
+     - `H5`: `##### 下位要求 {id}` (2-level pattern only) followed by `**要求**:`, `**理由**:`, `**説明**:`
+     - `H6`: `###### ＜{仕様グループ名}＞` (enclosed in full-width `＜＞`)
+   - **1-Level vs. 2-Level vs. Forced 2-Level**:
+     - In the 1-level pattern, H4 and H5 are skipped (H6 directly follows the H3 block).
+     - Maximum requirement depth is 2 levels (SubRequirements never contain H4).
+     - In the forced 2-level pattern (only 1 SubRequirement in a RequirementGroup), `**理由**:` and `**説明**:` of that SubRequirement are empty.
+   - **Specifications**:
+     - Every Requirement (1-level) or SubRequirement (2-level) has at least one `###### ＜{仕様グループ名}＞`, and each SpecificationGroup has at least one `- {verified_icon} **{id}**: {specification}` item where `{verified_icon}` is one of `□□□`, `■□□`, `■■□`, `■■■`.
+   - Remove any temporary `<!-- REMOVED: ... -->` comments from the final main spec.
 
-6. **Show summary**
+7. **Show summary**
 
    After applying all changes, summarize:
    - Which capabilities were updated
-   - What changes were made (requirements added/modified/removed/renamed)
-   - Any new main spec left with a TBD Purpose placeholder, so it gets written
-     now rather than lingering
-   - Any capability retired, naming the deleted `spec.md`, its Purpose, and
-     either a pasteable `git checkout` or checkout-scoped recovery guidance
+   - What USDM changes were made (requirements/specifications added, modified, removed, or status icons updated)
+   - Any capability retired
 
-**Delta Spec Format Reference**
+**USDM Spec Format Reference (`formats/USDM定義_マークダウン形式.md`)**
 
-```markdown
-## Purpose
-
-Only on a delta that introduces a brand-new capability. Seeds the new main spec.
-
-## ADDED Requirements
-
-### Requirement: New Feature
-The system SHALL do something new.
-
-#### Scenario: Basic case
-- **WHEN** user does X
-- **THEN** system does Y
-
-## MODIFIED Requirements
-
-### Requirement: Existing Feature
-The system SHALL keep doing the existing thing, now also handling A.
-
-#### Scenario: Scenario the main spec already has
-- **WHEN** user does X
-- **THEN** system does Y
-
-#### Scenario: New scenario to add
-- **WHEN** user does A
-- **THEN** system does B
-
-## REMOVED Requirements
-
-### Requirement: Deprecated Feature
-
-## RENAMED Requirements
-
-- FROM: `### Requirement: Old Name`
-- TO: `### Requirement: New Name`
-```
-
-**Main Spec Format Reference**
-
-Main specs are what the delta merges INTO. They must never contain delta operation headers (`## ADDED/MODIFIED/REMOVED/RENAMED Requirements`) - after syncing, every requirement lives under a single `## Requirements` section:
+### 1階層パターン (1-Level Pattern: H4/H5 skipped)
 
 ```markdown
-# <capability> Specification
+# <capability> 要求仕様書
 
-## Purpose
-Short description of what this capability does and why it exists.
+## ＜カテゴリ名＞
 
-## Requirements
+### キーワード1, キーワード2: 上位要求 R01
 
-### Requirement: New Feature
-The system SHALL do something new.
+**要求**: {requirement}
+**理由**: {reason}
+**説明**: {explanation}
 
-#### Scenario: Basic case
-- **WHEN** user does X
-- **THEN** system does Y
+###### ＜仕様グループ名＞
+
+- ■■■ **S01-01**: {specification}
+- ■■■ **S01-02**: {specification}
 ```
 
-**Key Principle: Intelligent Merging**
+### 2階層パターン (2-Level Pattern: H1–H6 all used)
 
-Unlike programmatic merging, you merge rather than overwrite:
-- A MODIFIED block carries the whole requirement - body plus every scenario that survives the change. `openspec validate` and `openspec archive` both reject one that drops a scenario the main spec still has.
-- Keep anything the delta does not mention, in the main spec's existing order
-- Use your judgment to merge changes sensibly
+```markdown
+# <capability> 要求仕様書
+
+## ＜カテゴリ名＞
+
+
+### キーワード: 上位要求 R01
+
+**要求**: {requirement}
+**理由**: {reason}
+**説明**: {explanation}
+
+#### ＜要求グループ名＞
+
+
+##### 下位要求 R01-01
+
+**要求**: {requirement}
+**理由**: {reason}
+**説明**: {explanation}
+
+###### ＜仕様グループ名＞
+
+- ■■■ **S01-01-01**: {specification}
+- ■■■ **S01-01-02**: {specification}
+
+##### 下位要求 R01-02
+
+**要求**: {requirement}
+**理由**: {reason}
+**説明**: {explanation}
+
+###### ＜仕様グループ名＞
+
+- ■■■ **S01-02-01**: {specification}
+```
+
+
+### 仕様ラベル (`verified_icon`)
+
+- `□□□`: 未レビュー (`[false, false, false]`)
+- `■□□`: レビュー済み (`[true, false, false]`)
+- `■■□`: 実装済み (`[true, true, false]`)
+- `■■■`: テスト済み (`[true, true, true]`)
+
+**Key Principle: Intelligent USDM Merging**
+
+Unlike programmatic overwriting, merge by USDM hierarchy and IDs (`R01`, `R01-01`, `S01-01`):
+- Preserve existing Categories, Requirements, SubRequirements, and Specifications that are not touched by the change.
+- Maintain valid H1–H6 heading levels and full-width angle brackets `＜＞` on all group headers.
 
 **Output On Success**
 
@@ -238,9 +226,10 @@ Updated main specs:
 - Added requirement: "Another Feature"
 
 Main specs are now updated. The change remains active - archive when implementation is complete.
-```
+````
 
 **Guardrails**
+
 - Read both delta and main specs before making changes
 - Preserve existing content not mentioned in delta
 - Never copy a delta file into a main spec as-is - merge its content so the main spec keeps the Main Spec Format Reference structure, with no delta operation headers

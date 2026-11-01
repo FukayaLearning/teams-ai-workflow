@@ -1,0 +1,139 @@
+name: spec-driven
+version: 1
+description: USDM-based OpenSpec workflow - proposal → specs (USDM Markdown) → design → tasks
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Initial proposal document outlining the change
+    template: proposal.md
+    instruction: |
+      Create the proposal document that establishes WHY this change is needed.
+
+      Sections:
+      - **Why**: 1-2 sentences on the problem or opportunity. What problem does this solve? Why now?
+      - **What Changes**: Bullet list of changes. Be specific about new capabilities, modifications, or removals. Mark breaking changes with **BREAKING**.
+      - **Capabilities**: Identify which specs will be created or modified:
+        - **New Capabilities**: List capabilities being introduced. Each becomes a new `specs/<capability-path>/spec.md`. Use kebab-case for path segments you introduce (e.g., `user-auth` or `identity/user-auth`) and follow the project's existing spec organization.
+        - **Modified Capabilities**: List existing capabilities whose REQUIREMENTS are changing. Only include if spec-level behavior changes (not just implementation details). Each needs a spec file. Use the exact existing path under `openspec/specs/`. Leave empty if no requirement changes.
+      - **Impact**: Affected code, APIs, dependencies, or systems.
+
+      IMPORTANT: The Capabilities section is critical. It creates the contract between
+      proposal and specs phases. Research existing specs before filling this in.
+      Each capability listed here will need a corresponding spec file.
+
+      Every change must either declare at least one capability (new or
+      modified) or explicitly opt out of specs: set `skip_specs: true` in the
+      change's `.openspec.yaml` only when no spec-level behavior changes (pure
+      refactor, tooling, docs).
+
+      Keep it concise (1-2 pages). Focus on the "why" not the "how" -
+      implementation details belong in design.md.
+
+      This is the foundation - specs, design, and tasks all build on this.
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Detailed specifications in USDM Markdown format (affordd-prj/usdm-schema)
+    template: spec.md
+    instruction: |
+      Create specification files (`specs/<capability-path>/spec.md`) in the **USDM Markdown format** defined by AFFORDD (`affordd-prj/usdm-schema`: `formats/USDM定義_マークダウン形式.md`).
+
+      ## 1. USDM Heading Hierarchy Rules (Fixed by Element Type)
+      Heading levels strictly determine the USDM element type. Never skip or shift levels except skipping H4/H5 in the 1-level pattern:
+      - `H1`: `# {title}` — 文書タイトル (e.g., `# queue-ingestion 要求仕様書`)
+      - `H2`: `## ＜{カテゴリ名}＞` — Category＝上位要求グループ (enclosed in full-width angle brackets `＜＞`, no ID)
+      - `H3`: `### {keywords}: 上位要求 {id}` — Requirement (上位要求, e.g., `### OneDrive, パス解決: 上位要求 R01`; keywords separated by `, `)
+      - Requirement attributes immediately under H3:
+        `**要求**: {requirement}`
+        `**理由**: {reason}`
+        `**説明**: {explanation}`
+      - `H4`: `#### ＜{要求グループ名}＞` — RequirementGroup (要求グループ, 2-level pattern only, enclosed in `＜＞`)
+      - `H5`: `##### 下位要求 {id}` — SubRequirement (下位要求, 2-level pattern only, e.g., `##### 下位要求 R01-01`)
+      - SubRequirement attributes immediately under H5:
+        `**要求**: {requirement}`
+        `**理由**: {reason}` (leave empty in forced 2-level pattern)
+        `**説明**: {explanation}` (leave empty in forced 2-level pattern)
+      - `H6`: `###### ＜{仕様グループ名}＞` — SpecificationGroup (仕様グループ, enclosed in `＜＞`)
+      - List item: `- {verified_icon} **{id}**: {specification}` — Specification (仕様, e.g., `- □□□ **S01-01**: ...` for 1-level or `- □□□ **S01-01-01**: ...` for 2-level)
+
+      ## 2. Specification Verified Status Icons (`verified_icon`)
+      - `□□□`: 未レビュー (`[false, false, false]`) — default when authoring new specs
+      - `■□□`: レビュー済み (`[true, false, false]`)
+      - `■■□`: 実装済み (`[true, true, false]`)
+      - `■■■`: テスト済み (`[true, true, true]`)
+
+      ## 3. Structural Patterns & Constraints
+      - **1-Level Pattern (1階層パターン)**: When a Requirement does not need decomposition into sub-requirements, omit H4 and H5 and place `###### ＜仕様グループ名＞` (H6) directly under the H3 Requirement block.
+      - **2-Level Pattern (2階層パターン)**: When a complex Requirement is decomposed into sub-requirements, use H4 (`#### ＜要求グループ名＞`) -> H5 (`##### 下位要求 R01-01`) -> H6 (`###### ＜仕様グループ名＞`). Maximum depth is 2 requirement levels (SubRequirements cannot have child RequirementGroups).
+      - **Forced 2-Level Pattern (強制2層パターン)**: In a 2-level pattern, if a RequirementGroup (`H4`) contains only 1 SubRequirement (`H5`), leave the SubRequirement's `**理由**:` and `**説明**:` blank to avoid duplication with the parent Requirement.
+      - **Minimum Elements**: Every Requirement (in 1-level) or SubRequirement (in 2-level) MUST have at least 1 SpecificationGroup (`H6`), and every SpecificationGroup MUST have at least 1 Specification list item (`- {icon} **{id}**: ...`).
+      - **Group Brackets**: All Category (`H2`), RequirementGroup (`H4`), and SpecificationGroup (`H6`) names MUST be wrapped in full-width angle brackets `＜＞`.
+
+      ## 4. Authoring Specs for New vs. Modified Capabilities
+      - Create one spec file per capability listed in the proposal's Capabilities section at `specs/<capability-path>/spec.md`.
+      - For a **modified capability**, read `<planningHome.root>/openspec/specs/<capability-path>/spec.md` first and write the updated USDM specification (preserving existing IDs for unchanged items, updating modified items, and adding new categories/requirements/specifications with new IDs; if removing an existing requirement or specification, note `<!-- REMOVED: {id} -->` so `openspec-sync-specs` can remove it from the main spec).
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Technical design document with implementation details
+    template: design.md
+    instruction: |
+      Create the design document that explains HOW to implement the change.
+
+      When to include design.md (create only if any apply):
+      - Cross-cutting change (multiple services/modules) or new architectural pattern
+      - New external dependency or significant data model changes
+      - Security, performance, or migration complexity
+      - Ambiguity that benefits from technical decisions before coding
+
+      Sections:
+      - **Context**: Only the current state and constraints needed to explain the approach. Reference the proposal for motivation instead of restating it (e.g., "See proposal.md - Why").
+      - **Goals / Non-Goals**: What this design achieves and explicitly excludes. Don't restate the proposal's scope - add only design-level boundaries.
+      - **Decisions**: Key technical choices with rationale (why X over Y?). Include alternatives considered for each decision.
+      - **Risks / Trade-offs**: Known limitations, things that could go wrong. Format: [Risk] → Mitigation
+      - **Migration Plan**: Steps to deploy, rollback strategy (if applicable)
+      - **Open Questions**: Unknowns that can safely be answered later without
+        changing the specs, the approach, or the task breakdown. Omit if none.
+
+      Focus on architecture and approach, not line-by-line implementation.
+      Reference the proposal for motivation and the USDM specs (by Requirement ID `Rxx` / Specification ID `Sxx-xx`) for requirements.
+    requires:
+      - proposal
+
+  - id: tasks
+    generates: tasks.md
+    description: Implementation checklist with trackable tasks
+    template: tasks.md
+    instruction: |
+      Create the task list that breaks down the implementation work.
+
+      Before writing tasks, check design.md for Open Questions. If any of them
+      would change what gets built, resolve them with the user first - do not
+      bake an unstated assumption into the task list.
+
+      **IMPORTANT: Follow the template below exactly.** The apply phase parses
+      checkbox format to track progress. Tasks not using `- [ ]` won't be tracked.
+
+      Guidelines:
+      - Group related tasks under ## numbered headings
+      - Each task MUST be a checkbox: `- [ ] X.Y Task description`
+      - Reference corresponding USDM Requirement/Specification IDs (e.g., `[R01 / S01-01]`) where applicable
+      - Tasks should be small enough to complete in one session
+      - Order tasks by dependency (what must be done first?)
+      - Each task MUST state how to verify completion (a test, command,
+        observable behavior, or delivered artifact).
+
+      Reference specs for what needs to be built, design for how to build it.
+    requires:
+      - specs
+      - design
+
+apply:
+  requires: [ tasks ]
+  tracks: tasks.md
+  instruction: |
+    Read context files, work through pending tasks, mark complete as you go (`- [ ]` -> `- [x]`), and update USDM specification status icons (`□□□` -> `■■□` when implemented, `■■■` when tested) in the change's `specs/<capability-path>/spec.md`.
+    Pause if you hit blockers or need clarification.

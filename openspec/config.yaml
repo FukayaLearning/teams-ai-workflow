@@ -1,32 +1,23 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  本プロジェクトの要求仕様書（`openspec/specs/**/spec.md` および `openspec/changes/*/specs/**/spec.md`）は、
+  派生開発推進協議会（AFFORDD）の USDM マークダウン形式フォーマット定義書
+  （`https://github.com/affordd-prj/usdm-schema/blob/main/formats/USDM定義_マークダウン形式.md`）に厳密に準拠して記述する。
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  specs:
+    - "見出しレベルを要素種別ごとに固定すること: H1=`# {title}`, H2=`## ＜{カテゴリ名}＞`, H3=`### {keywords}: 上位要求 {id}`, H4=`#### ＜{要求グループ名}＞`(2階層のみ), H5=`##### 下位要求 {id}`(2階層のみ), H6=`###### ＜{仕様グループ名}＞`"
+    - "カテゴリ（H2）・要求グループ（H4）・仕様グループ（H6）の名称は必ず全角山括弧 `＜＞` で囲み、カテゴリにはIDを付与しないこと"
+    - "上位要求（H3）および下位要求（H5）の直下には `**要求**: {requirement}`, `**理由**: {reason}`, `**説明**: {explanation}` を記載すること"
+    - "1階層パターンではH4・H5をスキップしてH3の直下にH6（`###### ＜仕様グループ名＞`）を配置し、2階層パターンではH1〜H6をすべて使用すること（要求階層は最大2階層まで）"
+    - "強制2層パターン（2階層パターンで要求グループ配下の下位要求が1つだけの場合）では、下位要求の `**理由**:` と `**説明**:` を空白にすること"
+    - "各仕様はH6の直下にリスト形式 `- {verified_icon} **{id}**: {specification}` で記述し、`verified_icon` には `□□□`（未レビュー）、`■□□`（レビュー済み）、`■■□`（実装済み）、`■■■`（テスト済み）のいずれかを使用すること"
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+operations:
+  apply:
+    guidance:
+      - "タスクの実装・テスト完了に伴い、対応するUSDM仕様（`- □□□ **Sxx-xx**:`）のステータスアイコンを `■■□`（実装済み）または `■■■`（テスト済み）へ更新すること"
+  archive:
+    guidance:
+      - "メイン仕様書（`openspec/specs/<capability-path>/spec.md`）への同期時、USDMマークダウン形式の見出し階層・全角山括弧 `＜＞`・仕様ラベル（`□□□`/`■□□`/`■■□`/`■■■`）が正しく維持されていることを確認すること"
