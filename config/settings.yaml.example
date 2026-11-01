@@ -1,0 +1,23 @@
+# teams-ai-workflow 設定ファイル
+
+lm_studio:
+  base_url: "http://127.0.0.1:1234/v1"
+  model: "qwen2.5-7b-instruct"
+  timeout_seconds: 60
+  max_retries: 2
+  temperature: 0.2
+
+queue:
+  # "auto" を指定すると Windows 環境変数 (%OneDriveCommercial%, %OneDriveConsumer%, %OneDrive%)
+  # または %USERPROFILE%\OneDrive - * から自動検出し、見つからない場合は ./data/TeamsQueue を使用します。
+  base_dir: "auto"
+  queue_folder_name: "TeamsQueue"
+  poll_interval_seconds: 5
+
+database:
+  path: "teams_workflow.db"
+
+actions:
+  enable_toast_notification: true
+  enable_auto_clipboard: true
+

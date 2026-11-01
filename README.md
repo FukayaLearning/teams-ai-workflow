@@ -83,16 +83,19 @@ Power Automate が OneDrive の `TeamsQueue/incoming/` に作成するJSONのフ
 }
 ```
 
-### 3.2. 処理ステータス管理
+### 3.2. 処理ステータス管理とOneDriveパス自動解決
 - `TeamsQueue/incoming/`: 未処理のJSONが配置されるフォルダ。
 - `TeamsQueue/processed/`: 処理完了後に移動されるフォルダ（履歴・バックアップ用）。
 - `TeamsQueue/failed/`: エラー発生時に退避されるフォルダ。
+- **ローカルパスの自動解決 (`app/config.py`)**:
+  - `config/settings.yaml` の `queue.base_dir` が `"auto"` の場合、Windows環境変数 `%OneDriveCommercial%` → `%OneDriveConsumer%` → `%OneDrive%` → `%USERPROFILE%\OneDrive - *` → `./data/TeamsQueue` の優先順位でローカル同期フォルダを自動検出し、`incoming`, `processed`, `failed` ディレクトリを自動作成します。
 
 ### 3.3. LLM判定仕様 (Decision Engine)
 LM Studio の OpenAI 互換エンドポイント (`http://127.0.0.1:1234/v1/chat/completions`) を使用。
 
-1. **ユーザープロファイル参照**:
+1. **ユーザープロファイル参照と自己送信メッセージ除外**:
    - `config/user_profile.yaml` に定義されたユーザーの担当分野・キーワードを参照し、メンションなしのグループチャットでも関連性を判定。
+   - 送信者が `self_names` または `self_emails` に一致する場合（自分自身の送信メッセージ）は、LLM推論を呼ばずに即座に `ignore` としてスキップします（Power Automate側のトリガー除外条件との二重防御）。
 2. **推論ステップ (Chain-of-Thought / Structured Output)**:
    - **Step 1 (関与度)**: ユーザーに関係があるか？（`is_relevant`: true / false）
    - **Step 2 (意図分類)**:
@@ -103,6 +106,9 @@ LM Studio の OpenAI 互換エンドポイント (`http://127.0.0.1:1234/v1/chat
    - **Step 3 (アクション生成)**:
      - 相談の場合: 相手が伝え漏れている前提条件（発生環境、エラーログ、希望期限、再現性など）を洗い出し、丁寧なヒアリング質問文を生成。
      - タスクの場合: タイトル、詳細、期限（推定または指定）、優先度を抽出。
+3. **JSON出力の安定化・リトライ機構 (`app/ai/lm_studio_client.py`)**:
+   - DeepSeek-R1系モデルの `<think>...</think>` 思考タグや Markdown コードブロック（````json ... ````）を自動除去してJSONオブジェクトを抽出します。
+   - JSONパースやPydanticスキーマ検証に失敗した場合は、`max_retries`（デフォルト2回）までエラーフィードバック付きで自動リトライします。
 
 #### レスポンスデータスキーマ
 ```json
@@ -183,7 +189,8 @@ teams-ai-workflow/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py                  # メイン常駐ループ（監視・処理オーケストレーション）
-│   ├── config.py                # 設定読み込み (settings.yaml, user_profile.yaml)
+│   ├── cli.py                   # Hermes Agent / Cron 連携用 CLI サブコマンド
+│   ├── config.py                # 設定読み込み・OneDriveパス自動解決
 │   ├── schemas.py               # Pydanticデータモデル (入力JSON, LLM出力)
 │   ├── storage/
 │   │   ├── __init__.py
@@ -194,19 +201,24 @@ teams-ai-workflow/
 │   │   └── queue_watcher.py     # OneDriveフォルダの監視・ファイル検出・ファイル移動
 │   ├── ai/
 │   │   ├── __init__.py
-│   │   ├── lm_studio_client.py  # LM Studio API クライアント (OpenAI互換)
-│   │   ├── decision_engine.py   # Decisionモデルによる判定・プロンプト実行
+│   │   ├── lm_studio_client.py  # LM Studio API クライアント (<think>除去・リトライ対応)
+│   │   ├── decision_engine.py   # Decisionモデルによる判定・自己送信除外
 │   │   └── prompts.py           # 判定・ヒアリング質問生成プロンプト定義
 │   └── actions/
 │       ├── __init__.py
-│       ├── desktop_notifier.py  # Windowsトースト通知表示 (win10toast / winsdk)
-│       └── clipboard_helper.py  # クリップボード自動コピー
+│       ├── desktop_notifier.py  # Windowsトースト通知表示 (windows-toasts / ログフォールバック)
+│       └── clipboard_helper.py  # クリップボード自動コピー (pyperclip / メモリフォールバック)
+├── .hermes/skills/teams-workflow/
+│   └── SKILL.md                 # Hermes Agent 連携スキル定義
 ├── config/
-│   ├── settings.yaml.example     # LM Studio接続設定、監視フォルダパス設定
-│   └── user_profile.yaml.example # 自分の名前・担当業務・キーワード設定
+│   ├── settings.yaml            # LM Studio接続設定、監視フォルダパス設定
+│   ├── settings.yaml.example
+│   ├── user_profile.yaml        # 自分の名前・担当業務・キーワード設定
+│   └── user_profile.yaml.example
 ├── docs/
-│   └── power_automate_setup.md  # Power Automate フロー作成マニュアル（画像解説付き）
-├── tests/                       # 単体テスト・モックデータ
+│   └── power_automate_setup.md  # Power Automate フロー作成手順書（自己送信除外・別テナント対応）
+├── tests/
+│   └── test_workflow.py         # 単体テスト・E2Eモックテスト
 ├── requirements.txt             # 依存ライブラリ
 ├── run.bat                      # Windows起動用ワンクリックバッチ
 └── README.md                    # 本仕様書
@@ -216,16 +228,38 @@ teams-ai-workflow/
 
 ## 6. セットアップ・実行要件
 
-- **OS**: Windows 10 / Windows 11
+- **OS**: Windows 10 / Windows 11（開発・テストは Linux / macOS でも実行可能）
 - **必須環境**:
   - Python 3.10 以上
   - OneDrive for Business デスクトップ同期クライアント（稼働中であること）
   - LM Studio（ローカルサーバー稼働中、デフォルト `http://127.0.0.1:1234/v1`）
   - 推奨LLM: 推論・判定精度の高いDecisionモデル（Qwen2.5-7B/14B/32B, DeepSeek-R1蒸留モデル, Llama-3.1等）
+- **Power Automate 側の設定**:
+  - クラウドフローの作成手順、自分自身が送信したメッセージの除外条件式、別テナント参加時の運用については [docs/power_automate_setup.md](file:///home/sweet/workspace/teams-ai-workflow/docs/power_automate_setup.md) を参照してください。
 
 ---
 
-## 7. 次回セッションへの引き継ぎ・残存検討事項
+## 7. 使い方（常駐モード & Hermes Agent ハイブリッド連携）
 
-開発の続き・実装ステップおよび詳細な残存検討事項については、[docs/TODO.md](file:///home/sweet/workspace/teams-ai-workflow/docs/TODO.md) を参照してください。
+### 7.1. スタンドアロン常駐モード
+Windows 環境で `run.bat` をダブルクリックするか、以下を実行します：
+```bash
+python -m app.main
+```
+
+### 7.2. Hermes Agent / CLI 連携モード
+[.hermes/skills/teams-workflow/SKILL.md](file:///home/sweet/workspace/teams-ai-workflow/.hermes/skills/teams-workflow/SKILL.md) により、Hermes Agent の対話セッションや Cron ジョブから以下の CLI サブコマンドを呼び出せます：
+
+```bash
+# 未処理キューのワンショット処理（未処理0件ならLLM呼び出しゼロで即終了）
+python -m app.cli process-queue --json
+
+# タスク一覧の照会・ステータス更新
+python -m app.cli list-tasks --status todo --json
+python -m app.cli update-task 1 --status done --json
+
+# 相談履歴の照会・返信案のブラッシュアップとクリップボード再コピー
+python -m app.cli list-consultations --json
+python -m app.cli copy-reply "<message_id>" --text "<修正した返信文>" --json
+```
 
