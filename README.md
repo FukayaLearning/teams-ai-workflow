@@ -14,15 +14,15 @@ PCがシャットダウンしている間や離席中に届いたTeamsメッセ�
 
 ```mermaid
 flowchart TD
-    subgraph Microsoft 365 クラウド (24時間稼働)
+    subgraph "Microsoft 365 クラウド (24時間稼働)"
         Teams["Microsoft Teams\n(1on1 / グループ / チャネル / 別テナント)"] -->|メッセージ検知| PA["Power Automate (クラウドフロー)"]
         PA -->|1件1ファイルのJSONを作成| CloudFolder["OneDrive for Business (クラウド)\n/TeamsQueue/incoming/{id}.json"]
     end
 
     CloudFolder -.->|OneDriveデスクトップアプリが自動同期| LocalFolder["ローカルPCのOneDrive同期フォルダ\nC:\\Users\\...\\TeamsQueue\\incoming\\"]
 
-    subgraph Windows PC (社内イントラネット内)
-        subgraph teams-ai-workflow (本アプリ)
+    subgraph "Windows PC (社内イントラネット内)"
+        subgraph "teams-ai-workflow (本アプリ)"
             Watcher["キューウォッチャー\n(フォルダ監視 / 未処理JSON読み取り)"]
             LocalDB[("ローカル SQLite DB\n(teams_workflow.db)")]
             DecisionEngine["Decision Engine\n(LM Studio連携)"]
@@ -35,7 +35,7 @@ flowchart TD
         
         Watcher --> DecisionEngine
 
-        subgraph LM Studio (Local Server)
+        subgraph "LM Studio (Local Server)"
             LMDecision["Decision Model\n(例: DeepSeek-R1 / Qwen2.5等)"]
         end
 
